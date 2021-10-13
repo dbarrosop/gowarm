@@ -1,6 +1,6 @@
-VERSION=$(shell cat VERSION)-$(shell date +%Y%m%d-%H%M%S)
-BRANCH="master"
-LDFLAGS="-X main.version=${VERSION}"
+include ../build/makefiles/common.mk
+include ../build/makefiles/go.mk
+
 
 .PHONY: central
 central:
