@@ -18,11 +18,20 @@ var (
 	version          string
 	delayLoop                = 2 * time.Second
 	hysteresisMargin float32 = 0.1
-	targetTemp       float32 = 22.0
+	targetTemp       float32 = 21.0
 	pin                      = machine.D7
 )
 
+func bootInfo() {
+	time.Sleep(10 * time.Second)
+	fmt.Println("Starting gowarm's peripheral")
+	fmt.Printf("version: %s\n", version)
+	fmt.Printf("name: %s\n", name)
+}
+
 func main() {
+	bootInfo()
+
 	sensor, err := device.NewBME280Sensor()
 	if err != nil {
 		println(err.Error())
@@ -30,11 +39,6 @@ func main() {
 	}
 
 	relay := device.NewPinRelay(pin)
-
-	time.Sleep(10 * time.Second)
-	fmt.Println("Starting gowarm's peripheral")
-	fmt.Printf("version: %s\n", version)
-	fmt.Printf("name: %s\n", name)
 
 	th := thermostat.New(sensor, relay, targetTemp, hysteresisMargin)
 

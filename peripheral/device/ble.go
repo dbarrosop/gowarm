@@ -120,6 +120,6 @@ func (ble *BLE) SendTemperature(temp float32) error {
 }
 
 func (ble *BLE) SendHumidity(humidity float32) error {
-	_, err := ble.chTemp.Write(types.Float32bytes(humidity))
+	_, err := ble.chHumidity.Write(types.Float32bytes(humidity))
 	return err
 }
