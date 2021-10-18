@@ -1,6 +1,9 @@
 package core
 
 import (
+	"time"
+
+	"github.com/sirupsen/logrus"
 	"tinygo.org/x/bluetooth"
 
 	"github.com/dbarrosop/gowarm/peripheral/pkg/types"
@@ -18,13 +21,28 @@ var (
 	CharacteristicUUIDMode = bluetooth.NewUUID([16]byte{0xfb, 0xf8, 0x11, 0xde, 0x6b, 0x33, 0x4a, 0x6f, 0x8e, 0xfc, 0xfd, 0xdd, 0x0f, 0x21, 0x08, 0x6d})
 )
 
+type (
+	floatCb func(float32)
+	boolCb  func(bool)
+)
+
 type Thermostat struct {
-	bleDevice *bluetooth.Device
-	name      string
+	logger       *logrus.Entry
+	bleDevice    *bluetooth.Device
+	name         string
+	tempCb       floatCb
+	humidityCb   floatCb
+	relayStateCb boolCb
+	LastSeen     time.Time
 }
 
-func NewThermostat() *Thermostat {
-	return &Thermostat{}
+func NewThermostat(logger *logrus.Entry, tempCb, humidityCb floatCb, relayStateCb boolCb) *Thermostat {
+	return &Thermostat{
+		logger:       logger,
+		tempCb:       tempCb,
+		humidityCb:   humidityCb,
+		relayStateCb: relayStateCb,
+	}
 }
 
 func (th *Thermostat) Name() string {
@@ -38,8 +56,13 @@ func (th *Thermostat) SetName(name string) {
 func (th *Thermostat) SetDevice(device *bluetooth.Device) {
 	th.bleDevice = device
 
-	println("discovering services/characteristics")
-	srvcs, err := device.DiscoverServices([]bluetooth.UUID{bluetooth.ServiceUUIDGenericAttribute, bluetooth.ServiceUUIDEnvironmentalSensing})
+	th.logger.Info("discovering services/characteristics")
+	srvcs, err := device.DiscoverServices(
+		[]bluetooth.UUID{
+			bluetooth.ServiceUUIDGenericAttribute,
+			bluetooth.ServiceUUIDEnvironmentalSensing,
+		},
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -58,23 +81,8 @@ func (th *Thermostat) SetDevice(device *bluetooth.Device) {
 				panic(err)
 			}
 		}
-		// 		println("- service", svc.UUID().String())
-
-		// 		chars, err := svc.DiscoverCharacteristics(nil)
-		// 		if err != nil {
-		// 			println(err)
-		// 		}
-		// 		for _, char := range chars {
-		// 			println("-- characteristic", char.UUID().String())
-		// 			n, err := char.Read(buf)
-		// 			if err != nil {
-		// 				println("    ", err.Error())
-		// 			} else {
-		// 				println("    data bytes", strconv.Itoa(n))
-		// 				println("    value =", string(buf[:n]))
-		// 			}
-		// 		}
 	}
+	th.LastSeen = time.Now()
 }
 
 func (th *Thermostat) discoverGenericAttribute(svc bluetooth.DeviceService, buf []byte) error {
@@ -98,13 +106,23 @@ func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, 
 	for _, ch := range chs {
 		switch ch.UUID() {
 		case bluetooth.CharacteristicUUIDTemperatureMeasurement:
-			n, err := ch.Read(buf)
-			if err != nil {
+			if err := ch.EnableNotifications(func(b []byte) {
+				th.LastSeen = time.Now()
+				th.tempCb(types.Float32frombytes(b))
+			}); err != nil {
 				return err
 			}
-			println(n, err, buf[:n], types.Float32frombytes(buf[:n]))
+		case bluetooth.CharacteristicUUIDHumidity:
 			if err := ch.EnableNotifications(func(b []byte) {
-				println(types.Float32frombytes(b))
+				th.LastSeen = time.Now()
+				th.humidityCb(types.Float32frombytes(b))
+			}); err != nil {
+				return err
+			}
+		case CharacteristicUUIDRelayState:
+			if err := ch.EnableNotifications(func(b []byte) {
+				th.LastSeen = time.Now()
+				th.relayStateCb(b[0] > 0x0)
 			}); err != nil {
 				return err
 			}

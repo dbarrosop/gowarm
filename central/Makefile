@@ -1,15 +1,15 @@
 include ../build/makefiles/common.mk
 include ../build/makefiles/go.mk
 
+NAME=central
 
-.PHONY: central
-central:
-	cd central && \
-		GOOS=linux GOARCH=arm \
-		 go build \
-		 -ldflags ${LDFLAGS} \
-		 -o gowarm-central \
-		 ./cmd/main.go
+.PHONY: build
+build:
+	GOOS=linux GOARCH=arm \
+	 go build \
+	 -ldflags ${LDFLAGS} \
+	 -o gowarm-central \
+	 ./cmd/main.go
 
 .PHONY: tests
 tests:

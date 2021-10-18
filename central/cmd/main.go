@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"tinygo.org/x/bluetooth"
@@ -9,11 +10,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	name    string
+	version string
+)
+
 func main() {
 	l := logrus.New()
 	l.SetLevel(logrus.DebugLevel)
 
 	logger := logrus.NewEntry(l)
+
+	logger.WithFields(logrus.Fields{"name": name, "version": version}).Info("starting gowarm-central")
 
 	adapter := bluetooth.DefaultAdapter
 	if err := adapter.Enable(); err != nil {
@@ -21,7 +29,7 @@ func main() {
 	}
 
 	c := core.New(adapter, logger, "F5:AC:32:45:C4:AD")
-	if err := c.Init(); err != nil {
+	if err := c.Start(context.Background()); err != nil {
 		panic(fmt.Sprintf("problem initializing central: %s", err))
 	}
 }
