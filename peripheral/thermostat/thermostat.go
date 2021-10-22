@@ -45,22 +45,22 @@ func New(sensor Sensor, relay Relay, targetTemp, hysteresisMargin float32) *Ther
 	}
 }
 
-func (th *Thermostat) Process() (float32, float32) {
+func (th *Thermostat) Process() (float32, float32, bool) {
 	temp, err := th.sensor.Temperature()
 	if err != nil {
 		println("got error reading temperature: %s", err.Error())
-		return 0, 0
+		return 0, 0, false
 	}
 
 	humidity, err := th.sensor.Humidity()
 	if err != nil {
 		println("got error reading humidity: %s", err.Error())
-		return 0, 0
+		return 0, 0, false
 	}
 
 	thermostatToogle(temp, th.targetTemp, th.hysteresisMargin, th.relay, th.mode)
 
-	return temp, humidity
+	return temp, humidity, th.relay.On()
 }
 
 func thermostatToogle(currentTemp, targetTemp, hysteresisMargin float32, relay Relay, mode byte) {

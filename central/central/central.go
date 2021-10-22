@@ -1,4 +1,4 @@
-package core
+package central
 
 import (
 	"context"
@@ -34,19 +34,24 @@ func updateRelayStateValue(addr string) func(bool) {
 	}
 }
 
-func New(adapter *bluetooth.Adapter, logger *logrus.Entry, addrs ...string) *Central {
-	ths := make(map[string]*Thermostat, len(addrs))
-	for _, addr := range addrs {
-		ths[addr] = NewThermostat(logger, updateTempValue(addr), updateHumidityValue(addr), updateRelayStateValue(addr))
-	}
+func New(adapter *bluetooth.Adapter, logger *logrus.Entry) *Central {
 	return &Central{
 		adapter:     adapter,
-		thermostats: ths,
+		thermostats: make(map[string]*Thermostat),
 		logger:      logger,
 	}
 }
 
-func (c *Central) connectToBLEDevices() error {
+func (c *Central) AddThermostat(address string, tempCb, humidityCb floatCb, relayStateCb boolCb, connectCb, disconnectCb connectionCb) *Thermostat {
+	th := NewThermostat(
+		tempCb, humidityCb, relayStateCb, connectCb, disconnectCb,
+		c.logger.WithFields(logrus.Fields{"pkg": "central.thermostat", "address": address}),
+	)
+	c.thermostats[address] = th
+	return th
+}
+
+func (c *Central) ConnectToBLEDevices(cb func(address string, ble *Thermostat)) error {
 	c.logger.Info("scanning for BLE devices")
 
 	err := c.adapter.Scan(func(adapter *bluetooth.Adapter, result bluetooth.ScanResult) {
@@ -62,10 +67,12 @@ func (c *Central) connectToBLEDevices() error {
 				if err != nil {
 					c.logger.Errorf("problem connecting with device: %s", result.Address.String())
 				}
-				th.SetName(result.LocalName())
+				th.name = result.LocalName()
 				th.SetDevice(device)
 
 				c.logger.Infof("connected to device: %s", th.Name())
+
+				cb(addr, th)
 
 				break
 			}
@@ -90,20 +97,12 @@ func (c *Central) connectToBLEDevices() error {
 	return nil
 }
 
-func (c *Central) Start(ctx context.Context) error {
-	c.logger.Info("initializing central")
-
-	if err := c.connectToBLEDevices(); err != nil {
-		return fmt.Errorf("problem connecting to devices: %w", err)
-	}
-
-	return c.Keepalive()
-}
-
-func (c *Central) Keepalive() error {
+func (c *Central) Keepalive(ctx context.Context) error {
 	d := 15 * time.Second
 	timer := time.NewTimer(d)
 	defer timer.Stop()
+
+	f := func(address string, ble *Thermostat) {}
 
 	for {
 		select {
@@ -122,12 +121,19 @@ func (c *Central) Keepalive() error {
 			}
 
 			if needsReconnect {
-				if err := c.connectToBLEDevices(); err != nil {
+				if err := c.ConnectToBLEDevices(f); err != nil {
 					return err
 				}
 			}
 
 			timer.Reset(d)
+		case <-ctx.Done():
+			for _, th := range c.thermostats {
+				if err := th.bleDevice.Disconnect(); err != nil {
+					th.logger.Warnf("problem disconnecting device: %s", err)
+				}
+			}
+			return nil
 		}
 	}
 }

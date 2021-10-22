@@ -1,137 +1,104 @@
 package core
 
 import (
-	"time"
+	"github.com/dbarrosop/gowarm/central/central"
+	"github.com/dbarrosop/gowarm/central/homekit"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
-	"tinygo.org/x/bluetooth"
-
-	"github.com/dbarrosop/gowarm/peripheral/pkg/types"
 )
 
-// https://yupana-engineering.com/online-uuid-to-c-array-converter
 var (
-	// 7512cf1b-3595-4723-b5e4-1e4681660d29
-	CharacteristicUUIDTargetTemperature = bluetooth.NewUUID([16]byte{0x75, 0x12, 0xcf, 0x1b, 0x35, 0x95, 0x47, 0x23, 0xb5, 0xe4, 0x1e, 0x46, 0x81, 0x66, 0x0d, 0x29})
-
-	// 5a466ead-b952-4a0f-b750-b988104be49d
-	CharacteristicUUIDRelayState = bluetooth.NewUUID([16]byte{0x5a, 0x46, 0x6e, 0xad, 0xb9, 0x52, 0x4a, 0x0f, 0xb7, 0x50, 0xb9, 0x88, 0x10, 0x4b, 0xe4, 0x9d})
-
-	// fbf811de-6b33-4a6f-8efc-fddd0f21086d
-	CharacteristicUUIDMode = bluetooth.NewUUID([16]byte{0xfb, 0xf8, 0x11, 0xde, 0x6b, 0x33, 0x4a, 0x6f, 0x8e, 0xfc, 0xfd, 0xdd, 0x0f, 0x21, 0x08, 0x6d})
-)
-
-type (
-	floatCb func(float32)
-	boolCb  func(bool)
+	currentTempMetric = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "current_temperature",
+		Help: "Temperature of the room",
+	},
+		[]string{"room"},
+	)
+	currentHumidityMetric = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "current_humidity",
+		Help: "Humidity of the room",
+	},
+		[]string{"room"},
+	)
+	targetTempMetric = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "target_temperature",
+		Help: "Target temperature for the room",
+	},
+		[]string{"room"},
+	)
+	relayStateMetric = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "relay_state",
+		Help: "Current relay state",
+	},
+		[]string{"room"},
+	)
+	connectedMetric = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "connection_state",
+		Help: "Current connection state",
+	},
+		[]string{"room"},
+	)
 )
 
 type Thermostat struct {
-	logger       *logrus.Entry
-	bleDevice    *bluetooth.Device
-	name         string
-	tempCb       floatCb
-	humidityCb   floatCb
-	relayStateCb boolCb
-	LastSeen     time.Time
+	hk     *homekit.Thermostat
+	ble    *central.Thermostat
+	logger *logrus.Entry
 }
 
-func NewThermostat(logger *logrus.Entry, tempCb, humidityCb floatCb, relayStateCb boolCb) *Thermostat {
+func NewThermostat(logger *logrus.Entry) *Thermostat {
+	logger.Info("creating thermostat")
 	return &Thermostat{
-		logger:       logger,
-		tempCb:       tempCb,
-		humidityCb:   humidityCb,
-		relayStateCb: relayStateCb,
+		logger: logger,
 	}
 }
 
-func (th *Thermostat) Name() string {
-	return th.name
+// this method is called when the peripheral is connected
+func (th *Thermostat) connectCb() {
+	connectedMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(1.0)
 }
 
-func (th *Thermostat) SetName(name string) {
-	th.name = name
+// this method is called when the peripheral is disconnected
+func (th *Thermostat) disconnectCb() {
+	connectedMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(0.0)
 }
 
-func (th *Thermostat) SetDevice(device *bluetooth.Device) {
-	th.bleDevice = device
+// this method is called by homekit accessory when the target temperature is updated in the home app
+func (th *Thermostat) targetTemperatureCb(value float64) {
+	th.logger.Infof("changing target temperature to %.2f", value)
+	th.ble.SetTargetTemperature(float32(value))
 
-	th.logger.Info("discovering services/characteristics")
-	srvcs, err := device.DiscoverServices(
-		[]bluetooth.UUID{
-			bluetooth.ServiceUUIDGenericAttribute,
-			bluetooth.ServiceUUIDEnvironmentalSensing,
-		},
-	)
-	if err != nil {
-		panic(err)
+	targetTempMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(value)
+}
+
+// this method is called by homekit accessory when the target heating-cooling state is updated in the home app
+func (th *Thermostat) targetHeatingCoolingStateCb(value int) {
+	th.logger.Infof("changing target heating/cooling state to %d", value)
+	th.ble.SetMode([]byte{byte(value)})
+}
+
+// this method is called by BLE peripheral when the current temperature is updated
+func (th *Thermostat) currentTemperatureCb(value float32) {
+	th.hk.SetCurrentTemperature(float64(value))
+
+	currentTempMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(float64(value))
+}
+
+// this method is called by BLE peripheral when the current humidity is updated
+func (th *Thermostat) currentHumidityCb(value float32) {
+	currentHumidityMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(float64(value))
+}
+
+// this method is called by BLE peripheral when the relay state is updated
+func (th *Thermostat) relayStateCb(value bool) {
+	s := 0
+	if value {
+		s = 1
 	}
 
-	// buffer to retrieve characteristic data
-	buf := make([]byte, 255)
+	th.hk.SetCurrentHeatingCoolingState(s)
 
-	for _, svc := range srvcs {
-		switch svc.UUID() {
-		case bluetooth.ServiceUUIDGenericAttribute:
-			if err := th.discoverGenericAttribute(svc, buf); err != nil {
-				panic(err)
-			}
-		case bluetooth.ServiceUUIDEnvironmentalSensing:
-			if err := th.discoverEnvironmentalSensing(svc, buf); err != nil {
-				panic(err)
-			}
-		}
-	}
-	th.LastSeen = time.Now()
-}
-
-func (th *Thermostat) discoverGenericAttribute(svc bluetooth.DeviceService, buf []byte) error {
-	// TODO
-	return nil
-}
-
-func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, buf []byte) error {
-	chs, err := svc.DiscoverCharacteristics(
-		[]bluetooth.UUID{
-			bluetooth.CharacteristicUUIDHumidity,
-			bluetooth.CharacteristicUUIDTemperatureMeasurement,
-			CharacteristicUUIDMode,
-			CharacteristicUUIDRelayState,
-			CharacteristicUUIDTargetTemperature,
-		})
-	if err != nil {
-		return err
-	}
-
-	for _, ch := range chs {
-		switch ch.UUID() {
-		case bluetooth.CharacteristicUUIDTemperatureMeasurement:
-			if err := ch.EnableNotifications(func(b []byte) {
-				th.LastSeen = time.Now()
-				th.tempCb(types.Float32frombytes(b))
-			}); err != nil {
-				return err
-			}
-		case bluetooth.CharacteristicUUIDHumidity:
-			if err := ch.EnableNotifications(func(b []byte) {
-				th.LastSeen = time.Now()
-				th.humidityCb(types.Float32frombytes(b))
-			}); err != nil {
-				return err
-			}
-		case CharacteristicUUIDRelayState:
-			if err := ch.EnableNotifications(func(b []byte) {
-				th.LastSeen = time.Now()
-				th.relayStateCb(b[0] > 0x0)
-			}); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (th *Thermostat) DelDevice() {
-	th.bleDevice = nil
+	relayStateMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(float64(s))
 }

@@ -45,8 +45,9 @@ func main() {
 	ble := device.NewBLE(bluetooth.DefaultAdapter, name, th.SetTargetTemperature, th.SetMode)
 	ble.Init()
 
+	prevState := false
 	for {
-		temp, humidity := th.Process()
+		temp, humidity, state := th.Process()
 		fmt.Printf("%.2f C, %.2f %%\n", temp, humidity)
 
 		if err := ble.SendTemperature(temp); err != nil {
@@ -54,6 +55,13 @@ func main() {
 		}
 		if err := ble.SendHumidity(humidity); err != nil {
 			fmt.Printf("problem sending humidity: %s", err)
+		}
+
+		if prevState != state {
+			if err := ble.SendRelayState(state); err != nil {
+				fmt.Printf("problem sending relay state: %s", err)
+			}
+			prevState = state
 		}
 
 		time.Sleep(delayLoop)

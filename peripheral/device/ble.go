@@ -123,3 +123,12 @@ func (ble *BLE) SendHumidity(humidity float32) error {
 	_, err := ble.chHumidity.Write(types.Float32bytes(humidity))
 	return err
 }
+
+func (ble *BLE) SendRelayState(state bool) error {
+	var b byte
+	if state {
+		b = 0x1
+	}
+	_, err := ble.chState.Write([]byte{b})
+	return err
+}
