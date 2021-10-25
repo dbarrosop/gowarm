@@ -44,9 +44,10 @@ type Thermostat struct {
 	LastSeen             time.Time
 }
 
-func NewThermostat(tempCb, humidityCb floatCb, relayStateCb boolCb, connectCb, disconnectCb connectionCb, logger *logrus.Entry) *Thermostat {
+func NewThermostat(name string, tempCb, humidityCb floatCb, relayStateCb boolCb, connectCb, disconnectCb connectionCb, logger *logrus.Entry) *Thermostat {
 	logger.Info("creating thermostat")
 	return &Thermostat{
+		name:           name,
 		logger:         logger,
 		tempCb:         tempCb,
 		humidityCb:     humidityCb,

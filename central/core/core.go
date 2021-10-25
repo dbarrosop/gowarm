@@ -24,11 +24,12 @@ func New(c *central.Central, hk *homekit.Homekit, logger *logrus.Entry) *Core {
 	return &Core{c, hk, map[string]*Thermostat{}, logger}
 }
 
-func (c *Core) AddThermostat(id uint64, address string) {
-	th := NewThermostat(c.logger.WithFields(logrus.Fields{"address": address, "pkg": "core.thermostat"}))
+func (c *Core) AddThermostat(name string, id uint64, address string) {
+	th := NewThermostat(c.logger.WithFields(logrus.Fields{"name": name, "address": address, "pkg": "core.thermostat"}))
 	c.thermostats[address] = th
 
 	th.ble = c.central.AddThermostat(
+		name,
 		address,
 		th.currentTemperatureCb,
 		th.currentHumidityCb,

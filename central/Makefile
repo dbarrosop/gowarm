@@ -1,7 +1,7 @@
 include ../build/makefiles/common.mk
 include ../build/makefiles/go.mk
 
-NAME=central
+DEVICE_NAME=central
 
 .PHONY: build
 build:

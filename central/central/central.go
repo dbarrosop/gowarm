@@ -42,10 +42,10 @@ func New(adapter *bluetooth.Adapter, logger *logrus.Entry) *Central {
 	}
 }
 
-func (c *Central) AddThermostat(address string, tempCb, humidityCb floatCb, relayStateCb boolCb, connectCb, disconnectCb connectionCb) *Thermostat {
+func (c *Central) AddThermostat(name, address string, tempCb, humidityCb floatCb, relayStateCb boolCb, connectCb, disconnectCb connectionCb) *Thermostat {
 	th := NewThermostat(
-		tempCb, humidityCb, relayStateCb, connectCb, disconnectCb,
-		c.logger.WithFields(logrus.Fields{"pkg": "central.thermostat", "address": address}),
+		name, tempCb, humidityCb, relayStateCb, connectCb, disconnectCb,
+		c.logger.WithFields(logrus.Fields{"pkg": "central.thermostat", "address": address, "name": name}),
 	)
 	c.thermostats[address] = th
 	return th
@@ -67,7 +67,6 @@ func (c *Central) ConnectToBLEDevices(cb func(address string, ble *Thermostat)) 
 				if err != nil {
 					c.logger.Errorf("problem connecting with device: %s", result.Address.String())
 				}
-				th.name = result.LocalName()
 				th.SetDevice(device)
 
 				c.logger.Infof("connected to device: %s", th.Name())
