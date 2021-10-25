@@ -81,3 +81,7 @@ func (th *Thermostat) SetTargetTemperature(value float32) {
 func (th *Thermostat) SetMode(mode byte) {
 	th.mode = mode
 }
+
+func (th *Thermostat) ModeOn() bool {
+	return th.mode != MODE_OFF
+}

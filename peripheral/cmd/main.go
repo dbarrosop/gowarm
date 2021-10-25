@@ -17,9 +17,11 @@ var (
 	name             string
 	version          string
 	delayLoop                = 2 * time.Second
-	hysteresisMargin float32 = 0.1
+	hysteresisMargin float32 = 0.2
 	targetTemp       float32 = 21.0
 	pin                      = machine.D7
+	maxTemp          float32 = 22.0
+	recoveryTime             = 3 * time.Minute
 )
 
 func bootInfo() {
@@ -29,13 +31,29 @@ func bootInfo() {
 	fmt.Printf("name: %s\n", name)
 }
 
+func attemptRecover(relay *device.PinRelay) {
+	relay.TurnOn()
+	time.Sleep(time.Second)
+	relay.TurnOff()
+	time.Sleep(time.Second)
+
+	relay.TurnOn()
+	time.Sleep(time.Second)
+	relay.TurnOff()
+}
+
 func main() {
 	bootInfo()
 
-	sensor, err := device.NewBME280Sensor()
-	if err != nil {
+	var sensor *device.BME280Sensor
+	var err error
+	for {
+		sensor, err = device.NewBME280Sensor()
+		if err == nil {
+			break
+		}
 		println(err.Error())
-		return
+		time.Sleep(time.Second)
 	}
 
 	relay := device.NewPinRelay(pin)
@@ -45,10 +63,11 @@ func main() {
 	ble := device.NewBLE(bluetooth.DefaultAdapter, name, th.SetTargetTemperature, th.SetMode)
 	ble.Init()
 
+	var recoveryTime time.Time
 	prevState := false
 	for {
 		temp, humidity, state := th.Process()
-		fmt.Printf("%.2f C, %.2f %%\n", temp, humidity)
+		// fmt.Printf("%.2f, %2.f, %t\n", temp, humidity, state)
 
 		if err := ble.SendTemperature(temp); err != nil {
 			fmt.Printf("problem sending temperature: %s", err)
@@ -62,6 +81,11 @@ func main() {
 				fmt.Printf("problem sending relay state: %s", err)
 			}
 			prevState = state
+		}
+
+		if temp > maxTemp && th.ModeOn() && time.Since(recoveryTime) > 1*time.Minute {
+			recoveryTime = time.Now()
+			attemptRecover(relay)
 		}
 
 		time.Sleep(delayLoop)
