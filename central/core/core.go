@@ -13,20 +13,40 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type Storage interface {
+	Close() error
+	Write(interface{}) error
+}
+
 type Core struct {
+	storage     Storage
 	central     *central.Central
 	homekit     *homekit.Homekit
-	thermostats map[string]*Thermostat
+	Thermostats map[string]*Thermostat
 	logger      *logrus.Entry
 }
 
-func New(c *central.Central, hk *homekit.Homekit, logger *logrus.Entry) *Core {
-	return &Core{c, hk, map[string]*Thermostat{}, logger}
+func New(storage Storage, c *central.Central, hk *homekit.Homekit, logger *logrus.Entry) *Core {
+	return &Core{
+		storage,
+		c,
+		hk,
+		map[string]*Thermostat{},
+		logger,
+	}
 }
 
-func (c *Core) AddThermostat(name string, id uint64, address string) {
-	th := NewThermostat(c.logger.WithFields(logrus.Fields{"name": name, "address": address, "pkg": "core.thermostat"}))
-	c.thermostats[address] = th
+func (c *Core) Persist() error {
+	return c.storage.Write(c)
+}
+
+func (c *Core) AddThermostat(name string, id uint64, address string, config *ThermostatConfig) {
+	th := NewThermostat(
+		config,
+		c.Persist,
+		c.logger.WithFields(logrus.Fields{"name": name, "address": address, "pkg": "core.thermostat"}),
+	)
+	c.Thermostats[address] = th
 
 	th.ble = c.central.AddThermostat(
 		name,
@@ -43,7 +63,7 @@ func (c *Core) AddThermostat(name string, id uint64, address string) {
 
 func (c *Core) InitThermostats() error {
 	f := func(address string, ble *central.Thermostat) {
-		th := c.thermostats[address]
+		th := c.Thermostats[address]
 		th.ble = ble
 		c.homekit.InitThermostat(
 			address,
@@ -51,6 +71,8 @@ func (c *Core) InitThermostats() error {
 			th.targetTemperatureCb,
 			th.targetHeatingCoolingStateCb,
 		)
+
+		th.Sync()
 	}
 
 	if err := c.central.ConnectToBLEDevices(f); err != nil {

@@ -42,16 +42,25 @@ var (
 	)
 )
 
-type Thermostat struct {
-	hk     *homekit.Thermostat
-	ble    *central.Thermostat
-	logger *logrus.Entry
+type ThermostatConfig struct {
+	TargetHeatingCoolingState int
+	TargetTemperature         float64
 }
 
-func NewThermostat(logger *logrus.Entry) *Thermostat {
+type Thermostat struct {
+	hk        *homekit.Thermostat
+	ble       *central.Thermostat
+	persistCb func() error
+	Config    *ThermostatConfig
+	logger    *logrus.Entry
+}
+
+func NewThermostat(config *ThermostatConfig, persistCb func() error, logger *logrus.Entry) *Thermostat {
 	logger.Info("creating thermostat")
 	return &Thermostat{
-		logger: logger,
+		Config:    config,
+		persistCb: persistCb,
+		logger:    logger,
 	}
 }
 
@@ -69,6 +78,11 @@ func (th *Thermostat) disconnectCb() {
 func (th *Thermostat) targetTemperatureCb(value float64) {
 	th.logger.Infof("changing target temperature to %.2f", value)
 	th.ble.SetTargetTemperature(float32(value))
+	th.Config.TargetTemperature = value
+
+	if err := th.persistCb(); err != nil {
+		th.logger.Errorf("problem trying to persist data: %s", err)
+	}
 
 	targetTempMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(value)
 }
@@ -77,6 +91,11 @@ func (th *Thermostat) targetTemperatureCb(value float64) {
 func (th *Thermostat) targetHeatingCoolingStateCb(value int) {
 	th.logger.Infof("changing target heating/cooling state to %d", value)
 	th.ble.SetMode([]byte{byte(value)})
+	th.Config.TargetHeatingCoolingState = value
+
+	if err := th.persistCb(); err != nil {
+		th.logger.Errorf("problem trying to persist data: %s", err)
+	}
 }
 
 // this method is called by BLE peripheral when the current temperature is updated
@@ -101,4 +120,19 @@ func (th *Thermostat) relayStateCb(value bool) {
 	th.hk.SetCurrentHeatingCoolingState(s)
 
 	relayStateMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(float64(s))
+}
+
+func (th *Thermostat) Sync() {
+	th.ble.SetTargetTemperature(float32(th.Config.TargetTemperature))
+	th.hk.SetTargetTemperature(th.Config.TargetTemperature)
+
+	th.ble.SetMode([]byte{byte(th.Config.TargetHeatingCoolingState)})
+	th.hk.SetTargetHeatingCoolingState(th.Config.TargetHeatingCoolingState)
+
+	mode, err := th.ble.GetMode()
+	if err != nil {
+		th.logger.Errorf("problem getting current mode: %s", err)
+	} else {
+		th.hk.SetCurrentHeatingCoolingState(int(mode))
+	}
 }

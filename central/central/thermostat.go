@@ -167,3 +167,12 @@ func (th *Thermostat) SetMode(value []byte) error {
 	_, err := th.chCTargetMode.WriteWithoutResponse(value)
 	return err
 }
+
+func (th *Thermostat) GetMode() (byte, error) {
+	b := make([]byte, 1)
+	_, err := th.chCTargetMode.Read(b)
+	if err != nil {
+		return 0.0, nil
+	}
+	return b[0], nil
+}

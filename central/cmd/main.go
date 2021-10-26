@@ -1,18 +1,21 @@
 /*
 TODO:
-1. disconnect gracefully? maybe on the receiving end, test on new
-2. Recover state
+1. Error discovering? gets stuck
+2. Get initial state
 
 Peripheral:
-1. +-0.2
+1. +-0.1????
 2. Recover mechansim
 */
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -35,6 +38,12 @@ type ThermostatConfig struct {
 	address string
 }
 
+type ThermostatParams struct {
+	Thermostats map[string]struct {
+		Config *core.ThermostatConfig
+	}
+}
+
 func parseThermostatConfig() ([]ThermostatConfig, error) {
 	thConfig := make([]ThermostatConfig, flag.NArg())
 	for i, arg := range flag.Args() {
@@ -53,6 +62,29 @@ func parseThermostatConfig() ([]ThermostatConfig, error) {
 	}
 
 	return thConfig, nil
+}
+
+func stateFile() (core.Storage, *ThermostatParams, error) {
+	f, err := os.OpenFile("state.json", os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	b, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tp := &ThermostatParams{
+		Thermostats: map[string]struct{ Config *core.ThermostatConfig }{},
+	}
+	if len(b) > 0 {
+		if err := json.Unmarshal(b, tp); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return core.NewFileStorage(f), tp, nil
 }
 
 func main() {
@@ -75,14 +107,29 @@ func main() {
 		panic(fmt.Sprintf("problem enabling adapter: %s", err))
 	}
 
+	fs, thparams, err := stateFile()
+	if err != nil {
+		panic(fmt.Sprintf("problem getting file storage: %s", err))
+	}
+	defer fs.Close()
+
 	c := core.New(
+		fs,
 		central.New(adapter, logger.WithField("pkg", "central")),
 		homekit.New(logger.WithField("pkg", "hk")),
 		logger.WithField("pkg", "core"),
 	)
 
 	for _, th := range ths {
-		c.AddThermostat(th.room, th.id, th.address)
+		config := &core.ThermostatConfig{
+			TargetHeatingCoolingState: 1,
+			TargetTemperature:         20.5,
+		}
+		t, ok := thparams.Thermostats[th.address]
+		if ok {
+			config = t.Config
+		}
+		c.AddThermostat(th.room, th.id, th.address, config)
 	}
 
 	if err := c.InitThermostats(); err != nil {
