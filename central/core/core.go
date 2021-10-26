@@ -89,11 +89,19 @@ func (c *Core) Start(ctx context.Context) error {
 	eg.Go(func() error {
 		c.logger.Info("starting prometheus handler")
 
-		http.Handle("/metrics", promhttp.Handler())
-		if err := http.ListenAndServe(fmt.Sprintf(":%d", 2114), nil); err != nil {
-			return err
+		server := http.Server{
+			Addr:    fmt.Sprintf(":%d", 2114),
+			Handler: nil,
 		}
-		return nil
+		http.Handle("/metrics", promhttp.Handler())
+		go func() {
+			if err := server.ListenAndServe(); err != nil {
+				c.logger.Warning(err)
+			}
+		}()
+
+		<-ctx.Done()
+		return server.Shutdown(context.Background())
 	})
 
 	eg.Go(func() error { return c.central.Keepalive(ctx) })

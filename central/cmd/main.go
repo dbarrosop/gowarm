@@ -1,11 +1,6 @@
 /*
 TODO:
 1. Error discovering? gets stuck
-2. Get initial state
-
-Peripheral:
-1. +-0.1????
-2. Recover mechansim
 */
 package main
 
@@ -16,8 +11,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"tinygo.org/x/bluetooth"
 
@@ -136,7 +133,11 @@ func main() {
 		panic(fmt.Sprintf("problem initializing thermostats: %s", err))
 	}
 
-	if err := c.Start(context.Background()); err != nil {
+	// capture ctrl-c and sigterm
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if err := c.Start(ctx); err != nil {
 		panic(err)
 	}
 }

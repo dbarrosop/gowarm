@@ -94,6 +94,7 @@ func (ble *BLE) Init() error {
 				Value:  []byte{0, 0},
 				Flags:  bluetooth.CharacteristicReadPermission | bluetooth.CharacteristicWritePermission,
 				WriteEvent: func(_ bluetooth.Connection, _ int, value []byte) {
+					// fmt.Printf("received write event for 'mode' %v\n", value)
 					ble.modeCb(value[0])
 				},
 			},
@@ -103,6 +104,7 @@ func (ble *BLE) Init() error {
 				Value:  []byte{0, 0},
 				Flags:  bluetooth.CharacteristicReadPermission | bluetooth.CharacteristicWritePermission,
 				WriteEvent: func(_ bluetooth.Connection, _ int, value []byte) {
+					// fmt.Printf("received write event for 'target temperature' %v\n", types.Float32frombytes(value))
 					ble.targetCb(types.Float32frombytes(value))
 				},
 			},
