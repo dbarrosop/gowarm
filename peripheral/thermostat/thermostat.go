@@ -74,6 +74,10 @@ func thermostatToogle(currentTemp, targetTemp, hysteresisMargin float32, relay R
 	}
 }
 
+func (th *Thermostat) TargetTemperature() float32 {
+	return th.targetTemp
+}
+
 func (th *Thermostat) SetTargetTemperature(value float32) {
 	th.targetTemp = value
 }

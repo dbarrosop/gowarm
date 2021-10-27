@@ -20,7 +20,7 @@ var (
 	hysteresisMargin float32 = 0.2
 	targetTemp       float32 = 21.0
 	pin                      = machine.D7
-	maxTemp          float32 = 22.0
+	maxIncrease      float32 = 0.5
 	recoveryTime             = 3 * time.Minute
 )
 
@@ -83,7 +83,7 @@ func main() {
 			prevState = state
 		}
 
-		if temp > maxTemp && th.ModeOn() && time.Since(recoveryTime) > 1*time.Minute {
+		if temp > th.TargetTemperature()+maxIncrease && th.ModeOn() && time.Since(recoveryTime) > 1*time.Minute {
 			recoveryTime = time.Now()
 			attemptRecover(relay)
 		}
