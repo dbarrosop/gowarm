@@ -42,9 +42,7 @@ func attemptRecover(relay *device.PinRelay) {
 	relay.TurnOff()
 }
 
-func main() {
-	bootInfo()
-
+func getBMESensor() thermostat.Sensor {
 	var sensor *device.BME280Sensor
 	var err error
 	for {
@@ -53,8 +51,30 @@ func main() {
 			break
 		}
 		println(err.Error())
-		time.Sleep(time.Second)
+		time.Sleep(delayLoop)
 	}
+	return sensor
+}
+
+func getBMPSensor() thermostat.Sensor {
+	var sensor *device.BMP280Sensor
+	var err error
+	for {
+		sensor, err = device.NewBMP280Sensor()
+		if err == nil {
+			break
+		}
+		println(err.Error())
+		time.Sleep(delayLoop)
+	}
+	return sensor
+}
+
+func main() {
+	bootInfo()
+
+	sensor := getBMESensor()
+	// sensor := getBMPSensor()
 
 	relay := device.NewPinRelay(pin)
 
