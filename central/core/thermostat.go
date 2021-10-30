@@ -135,4 +135,14 @@ func (th *Thermostat) Sync() {
 	} else {
 		th.hk.SetCurrentHeatingCoolingState(int(mode))
 	}
+
+	s, err := th.ble.GetRelayState()
+	if err != nil {
+		th.logger.Errorf("problem getting current relay state: %s", err)
+	} else {
+		relayStateMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(float64(s))
+		th.hk.SetCurrentHeatingCoolingState(int(s))
+	}
+
+	targetTempMetric.With(prometheus.Labels{"room": th.ble.Name()}).Set(th.Config.TargetTemperature)
 }

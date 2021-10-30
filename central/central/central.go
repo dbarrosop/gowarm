@@ -98,12 +98,10 @@ func (c *Central) ConnectToBLEDevices(cb func(address string, ble *Thermostat)) 
 	return nil
 }
 
-func (c *Central) Keepalive(ctx context.Context) error {
+func (c *Central) Keepalive(ctx context.Context, cb func(address string, ble *Thermostat)) error {
 	d := 15 * time.Second
 	timer := time.NewTimer(d)
 	defer timer.Stop()
-
-	f := func(address string, ble *Thermostat) {}
 
 	for {
 		select {
@@ -122,7 +120,7 @@ func (c *Central) Keepalive(ctx context.Context) error {
 			}
 
 			if needsReconnect {
-				if err := c.ConnectToBLEDevices(f); err != nil {
+				if err := c.ConnectToBLEDevices(cb); err != nil {
 					return err
 				}
 			}

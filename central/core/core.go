@@ -104,7 +104,12 @@ func (c *Core) Start(ctx context.Context) error {
 		return server.Shutdown(context.Background())
 	})
 
-	eg.Go(func() error { return c.central.Keepalive(ctx) })
+	f := func(address string, _ *central.Thermostat) {
+		th := c.Thermostats[address]
+		th.Sync()
+	}
+
+	eg.Go(func() error { return c.central.Keepalive(ctx, f) })
 
 	eg.Go(func() error { return c.homekit.Start() })
 
