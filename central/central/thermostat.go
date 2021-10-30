@@ -52,7 +52,7 @@ func (th *Thermostat) Name() string {
 func (th *Thermostat) SetDevice(device *bluetooth.Device) {
 	th.bleDevice = device
 
-	th.logger.Info("discovering services/characteristics")
+	th.logger.Info("discovering services/characteristics started")
 	srvcs, err := device.DiscoverServices(
 		[]bluetooth.UUID{
 			bluetooth.ServiceUUIDGenericAttribute,
@@ -67,19 +67,26 @@ func (th *Thermostat) SetDevice(device *bluetooth.Device) {
 	buf := make([]byte, 255)
 
 	for _, svc := range srvcs {
+		logger := th.logger.WithField("ble-svc", svc.String())
+		logger.Info("discovering service")
 		switch svc.UUID() {
 		case bluetooth.ServiceUUIDGenericAttribute:
+			logger.Info("discovering characteristics for service generic attribute started")
 			if err := th.discoverGenericAttribute(svc, buf); err != nil {
 				panic(err)
 			}
+			logger.Info("discovering characteristics for service generic attribute completed")
 		case bluetooth.ServiceUUIDEnvironmentalSensing:
-			if err := th.discoverEnvironmentalSensing(svc, buf); err != nil {
+			logger.Info("discovering characteristics for service environmental service started")
+			if err := th.discoverEnvironmentalSensing(svc, buf, logger); err != nil {
 				panic(err)
 			}
+			logger.Info("discovering characteristics for service environmental service completed")
 		}
 	}
 	th.LastSeen = time.Now()
 
+	th.logger.Info("discovering services/characteristics completed")
 	th.connectedCb()
 }
 
@@ -89,6 +96,9 @@ func (th *Thermostat) discoverGenericAttribute(svc bluetooth.DeviceService, buf 
 }
 
 func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, buf []byte) error {
+	logger = logger.WithField("ble-service", "EnvironmentalSensing")
+	logger.Info("discovering characteristics")
+func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, buf []byte, logger *logrus.Entry) error {
 	chs, err := svc.DiscoverCharacteristics(
 		[]bluetooth.UUID{
 			types.CharacteristicUUIDHumidity,
@@ -103,6 +113,7 @@ func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, 
 	}
 
 	for _, ch := range chs {
+		logger.WithField("ble-char", ch.String()).Info("discovering characteristic")
 		switch ch.UUID() {
 		case types.CharacteristicUUIDTemperatureMeasurement:
 			th.chCurrentTemperature = ch

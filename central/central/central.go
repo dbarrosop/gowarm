@@ -55,6 +55,7 @@ func (c *Central) ConnectToBLEDevices(cb func(address string, ble *Thermostat)) 
 	c.logger.Info("scanning for BLE devices")
 
 	err := c.adapter.Scan(func(adapter *bluetooth.Adapter, result bluetooth.ScanResult) {
+		c.logger.Info("scanning for BLE devices")
 		for addr, th := range c.thermostats {
 			if result.Address.String() == addr {
 				// stop early if we are connected already
@@ -65,7 +66,8 @@ func (c *Central) ConnectToBLEDevices(cb func(address string, ble *Thermostat)) 
 				c.logger.Infof("device found: %s", result.Address.String())
 				device, err := adapter.Connect(result.Address, bluetooth.ConnectionParams{})
 				if err != nil {
-					c.logger.Errorf("problem connecting with device: %s", result.Address.String())
+					c.logger.Errorf("problem connecting with device %s: %s", result.Address.String(), err)
+					break
 				}
 				th.SetDevice(device)
 
