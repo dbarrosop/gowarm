@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.8.1
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	tinygo.org/x/bluetooth v0.3.0
+	tinygo.org/x/bluetooth v0.3.1-0.20210903130701-899467bab329
 )
 
 replace github.com/dbarrosop/gowarm/peripheral => ../peripheral

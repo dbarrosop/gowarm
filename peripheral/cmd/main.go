@@ -14,14 +14,18 @@ import (
 )
 
 var (
-	name             string
-	version          string
+	name    string
+	version string
+)
+
+const (
 	delayLoop                = 2 * time.Second
-	hysteresisMargin float32 = 0.2
+	hysteresisMargin float32 = 0.1
 	targetTemp       float32 = 21.0
 	pin                      = machine.D7
 	maxIncrease      float32 = 0.5
 	recoveryTime             = 3 * time.Minute
+	// recoveryTime = 15 * time.Second
 )
 
 func bootInfo() {
@@ -83,11 +87,12 @@ func main() {
 	ble := device.NewBLE(bluetooth.DefaultAdapter, name, th.SetTargetTemperature, th.SetMode)
 	ble.Init()
 
-	var recoveryTime time.Time
+	var lastRecoverAttempt time.Time
+	var resetTemp float32
 	prevState := false
 	for {
 		temp, humidity, state := th.Process()
-		// fmt.Printf("%.2f, %2.f, %t\n", temp, humidity, state)
+		fmt.Printf("%.2f, %2.f, %t\n", temp, humidity, state)
 
 		if err := ble.SendTemperature(temp); err != nil {
 			fmt.Printf("problem sending temperature: %s", err)
@@ -103,9 +108,14 @@ func main() {
 			prevState = state
 		}
 
-		if temp > th.TargetTemperature()+maxIncrease && th.ModeOn() && time.Since(recoveryTime) > 1*time.Minute {
-			recoveryTime = time.Now()
+		if temp > th.TargetTemperature()+maxIncrease && th.ModeOn() && time.Since(lastRecoverAttempt) > recoveryTime && temp >= resetTemp {
+			resetTemp = temp
+
+			fmt.Println("resetting")
+			lastRecoverAttempt = time.Now()
 			attemptRecover(relay)
+		} else if temp <= th.TargetTemperature()+maxIncrease {
+			resetTemp = temp
 		}
 
 		time.Sleep(delayLoop)
