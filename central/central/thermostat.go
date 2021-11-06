@@ -121,7 +121,15 @@ func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, 
 
 			if err := ch.EnableNotifications(func(b []byte) {
 				th.LastSeen = time.Now()
-				th.tempCb(types.Float32frombytes(b))
+
+				var temp float32
+				if len(b) == 5 {
+					temp = types.DecodeIEEE11073(b)
+				} else {
+					temp = types.Float32frombytes(b)
+				}
+
+				th.tempCb(temp)
 			}); err != nil {
 				return err
 			}
@@ -130,7 +138,15 @@ func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, 
 
 			if err := ch.EnableNotifications(func(b []byte) {
 				th.LastSeen = time.Now()
-				th.humidityCb(types.Float32frombytes(b))
+
+				var humidity float32
+				if len(b) == 5 {
+					humidity = types.DecodeIEEE11073(b)
+				} else {
+					humidity = types.Float32frombytes(b)
+				}
+
+				th.humidityCb(humidity)
 			}); err != nil {
 				return err
 			}
@@ -160,7 +176,13 @@ func (th *Thermostat) DelDevice() {
 }
 
 func (th *Thermostat) SetTargetTemperature(value float32) error {
-	_, err := th.chCTargetTemperature.WriteWithoutResponse(types.Float32bytes(value))
+	var data []byte
+	if th.Name() == "office" {
+		data = types.EncodeIEEE11073(value)
+	} else {
+		data = types.Float32bytes(value)
+	}
+	_, err := th.chCTargetTemperature.WriteWithoutResponse(data)
 	return err
 }
 

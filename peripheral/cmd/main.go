@@ -19,7 +19,7 @@ var (
 )
 
 const (
-	delayLoop                = 2 * time.Second
+	delayLoop                = 10 * time.Second
 	hysteresisMargin float32 = 0.1
 	targetTemp       float32 = 21.0
 	pin                      = machine.D7
@@ -75,6 +75,9 @@ func getBMPSensor() thermostat.Sensor {
 }
 
 func main() {
+	// https://github.com/tinygo-org/tinygo/issues/1586#issuecomment-825793745
+	// (*volatile.Register32)(unsafe.Pointer(uintptr(0xE000ED88))).Set(0)
+
 	bootInfo()
 
 	sensor := getBMESensor()
