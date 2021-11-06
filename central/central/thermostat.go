@@ -55,7 +55,7 @@ func (th *Thermostat) SetDevice(device *bluetooth.Device) {
 	th.logger.Info("discovering services/characteristics started")
 	srvcs, err := device.DiscoverServices(
 		[]bluetooth.UUID{
-			bluetooth.ServiceUUIDGenericAttribute,
+			// bluetooth.ServiceUUIDGenericAttribute,
 			bluetooth.ServiceUUIDEnvironmentalSensing,
 		},
 	)
@@ -95,19 +95,20 @@ func (th *Thermostat) discoverGenericAttribute(svc bluetooth.DeviceService, buf 
 	return nil
 }
 
-func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, buf []byte) error {
+func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, buf []byte, logger *logrus.Entry) error {
 	logger = logger.WithField("ble-service", "EnvironmentalSensing")
 	logger.Info("discovering characteristics")
-func (th *Thermostat) discoverEnvironmentalSensing(svc bluetooth.DeviceService, buf []byte, logger *logrus.Entry) error {
+
 	chs, err := svc.DiscoverCharacteristics(
+		// nil,
 		[]bluetooth.UUID{
 			types.CharacteristicUUIDHumidity,
 			types.CharacteristicUUIDTemperatureMeasurement,
 			types.CharacteristicUUIDMode,
 			types.CharacteristicUUIDRelayState,
 			types.CharacteristicUUIDTargetTemperature,
-			types.CharacteristicUUIDResetAttempt,
-		})
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -173,6 +174,15 @@ func (th *Thermostat) GetMode() (byte, error) {
 	_, err := th.chCTargetMode.Read(b)
 	if err != nil {
 		return 0.0, nil
+	}
+	return b[0], nil
+}
+
+func (th *Thermostat) GetRelayState() (byte, error) {
+	b := make([]byte, 1)
+	_, err := th.chCurrentRelayState.Read(b)
+	if err != nil {
+		return 0, nil
 	}
 	return b[0], nil
 }

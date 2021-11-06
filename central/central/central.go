@@ -42,9 +42,9 @@ func New(adapter *bluetooth.Adapter, logger *logrus.Entry) *Central {
 	}
 }
 
-func (c *Central) AddThermostat(name, address string, tempCb, humidityCb floatCb, relayStateCb boolCb, connectCb, disconnectCb, resetCb connectionCb) *Thermostat {
+func (c *Central) AddThermostat(name, address string, tempCb, humidityCb floatCb, relayStateCb boolCb, connectCb, disconnectCb connectionCb) *Thermostat {
 	th := NewThermostat(
-		name, tempCb, humidityCb, relayStateCb, connectCb, disconnectCb, resetCb,
+		name, tempCb, humidityCb, relayStateCb, connectCb, disconnectCb,
 		c.logger.WithFields(logrus.Fields{"pkg": "central.thermostat", "address": address, "name": name}),
 	)
 	c.thermostats[address] = th
