@@ -177,10 +177,10 @@ func (th *Thermostat) DelDevice() {
 
 func (th *Thermostat) SetTargetTemperature(value float32) error {
 	var data []byte
-	if th.Name() == "office" {
-		data = types.EncodeIEEE11073(value)
-	} else {
+	if th.Name() == "kitchen" {
 		data = types.Float32bytes(value)
+	} else {
+		data = types.EncodeIEEE11073(value)
 	}
 	_, err := th.chCTargetTemperature.WriteWithoutResponse(data)
 	return err

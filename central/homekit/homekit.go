@@ -27,11 +27,11 @@ func (hk *Homekit) InitThermostat(address, name string, targetTemperatureCb func
 	hk.thermostats[address].Init(name, address, targetTemperatureCb, targetHeatingCoolingStateCb)
 }
 
-func (hk *Homekit) Start() error {
+func (hk *Homekit) Start(name string) error {
 	hk.logger.Infof("starting homekit service")
 
 	bridge := accessory.NewBridge(accessory.Info{
-		Name:             "GoWarm",
+		Name:             fmt.Sprintf("GoWarm %s", name),
 		SerialNumber:     "66666",
 		Manufacturer:     "Potato Industries",
 		Model:            "Boiled Potatoes",
@@ -49,7 +49,7 @@ func (hk *Homekit) Start() error {
 
 	t, err := hc.NewIPTransport(hc.Config{
 		StoragePath: "homekit-data",
-		Port:        "54113",
+		Port:        "54114",
 		Pin:         "00102003",
 		SetupId:     "",
 	}, bridge.Accessory, accs...)

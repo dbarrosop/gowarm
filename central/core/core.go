@@ -82,7 +82,7 @@ func (c *Core) InitThermostats() error {
 	return nil
 }
 
-func (c *Core) Start(ctx context.Context) error {
+func (c *Core) Start(ctx context.Context, name string) error {
 	c.logger.Info("starting services")
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -111,7 +111,7 @@ func (c *Core) Start(ctx context.Context) error {
 
 	eg.Go(func() error { return c.central.Keepalive(ctx, f) })
 
-	eg.Go(func() error { return c.homekit.Start() })
+	eg.Go(func() error { return c.homekit.Start(name) })
 
 	return eg.Wait()
 }

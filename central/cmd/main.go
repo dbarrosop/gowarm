@@ -1,6 +1,9 @@
 /*
 TODO:
-1. Error discovering? gets stuck
+1. Signal reset
+2. sometimes gets stuck in discovery
+3. --version
+4. start even if it can't connect to one of the thermostats
 */
 package main
 
@@ -137,7 +140,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	if err := c.Start(ctx); err != nil {
+	if err := c.Start(ctx, name); err != nil {
 		panic(err)
 	}
 }

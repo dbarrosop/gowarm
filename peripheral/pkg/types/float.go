@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 )
 
@@ -32,7 +31,6 @@ func DecodeIEEE11073(bytes []byte) float32 {
 	}
 
 	mantissa := int32(binary.BigEndian.Uint32([]byte{sign, b2, b1, b0}))
-	fmt.Println(mantissa)
 	f := float64(mantissa) * math.Pow(10.0, float64(exponent))
 	return float32(math.Round(float64(f)*100) / 100)
 }

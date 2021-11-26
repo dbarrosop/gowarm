@@ -43,9 +43,6 @@ ble_target_mode_callback_t targetModeCb;
 BLEService ths(UUID16_SVC_ENVIRONMENTAL_SENSING);
 BLECharacteristic thsTemperature(UUID16_CHR_TEMPERATURE_MEASUREMENT);
 BLECharacteristic thsHumidity(THS_UUID_CHR_HUMIDITY);
-BLECharacteristic thsTargetTemperature(THS_UUID_CHR_TARGET_TEMPERATURE);
-BLECharacteristic thsRelayState(THS_UUID_CHR_RELAY_STATE);
-BLECharacteristic thsTargetMode(THS_UUID_CHR_TARGET_MODE);
 
 void startAdv(void) { // Advertising packet
     Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
@@ -69,59 +66,29 @@ void startAdv(void) { // Advertising packet
      * https://developer.apple.com/library/content/qa/qa1931/_index.html
      */
     Bluefruit.Advertising.restartOnDisconnect(true);
-    Bluefruit.Advertising.setInterval(32, 244); // in unit of 0.625 ms
+    Bluefruit.Advertising.setInterval(3200, 3200); // in unit of 0.625 ms
     Bluefruit.Advertising.setFastTimeout(30);   // number of seconds in fast mode
     Bluefruit.Advertising.start(0);             // 0 = Don't stop advertising after n seconds
-}
-
-void connect_callback(uint16_t conn_handle) {
-    (void)conn_handle;
-
-    Serial.println("Connected");
-}
-
-/* Callback invoked when a connection is dropped */
-/* @param conn_handle connection where this event happens */
-/* @param reason is a BLE_HCI_STATUS_CODE which can be found in ble_hci.h */
-void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
-    (void)conn_handle;
-    (void)reason;
-
-    Serial.println();
-    Serial.print("Disconnected, reason = 0x");
-    Serial.println(reason, HEX);
-}
-
-void target_temperature_write_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint8_t *data,
-                                       uint16_t len) {
-    (void)conn_hdl;
-    (void)chr;
-    (void)len;
-
-    float temperature = decodeIEEE11073(data + 1);
-    targetTemperatureCb(temperature);
-}
-
-void target_mode_write_callback(uint16_t conn_hdl, BLECharacteristic *chr, uint8_t *data,
-                                uint16_t len) {
-    (void)conn_hdl;
-    (void)chr;
-    (void)len;
-    uint8_t mode = chr->read8();
-    targetModeCb(mode);
 }
 
 namespace BLE {
 void setup(const char *name, ble_target_temperature_callback_t ttCb,
            ble_target_mode_callback_t tmCb) {
-    Serial.println("Setting up BLE");
+    /* Serial.println("Setting up BLE"); */
 
     targetTemperatureCb = ttCb;
     targetModeCb = tmCb;
 
     Bluefruit.begin(1, 0);
-    Bluefruit.Periph.setConnectCallback(connect_callback);
-    Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
+
+    // off Blue LED for lowest power consumption
+    Bluefruit.autoConnLed(false);
+      
+    // Set max power. Accepted values are: -40, -30, -20, -16, -12, -8, -4, 0, 4
+    Bluefruit.setTxPower(0);
+
+    /* Bluefruit.Periph.setConnectCallback(connect_callback); */
+    /* Bluefruit.Periph.setDisconnectCallback(disconnect_callback); */
     Bluefruit.setName(name);
 
     ths.begin();
@@ -138,27 +105,7 @@ void setup(const char *name, ble_target_temperature_callback_t ttCb,
     thsHumidity.begin();
     /* thsHumidity.writeFloat(humidity); */
 
-    thsRelayState.setFixedLen(1);
-    thsRelayState.setProperties(CHR_PROPS_READ | CHR_PROPS_NOTIFY);
-    thsRelayState.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-    thsRelayState.begin();
-    /* thsRelayState.write8(relayState); */
-
-    thsTargetTemperature.setFixedLen(5);
-    thsTargetTemperature.setProperties(CHR_PROPS_READ | CHR_PROPS_WRITE | CHR_PROPS_WRITE_WO_RESP);
-    thsTargetTemperature.setPermission(SECMODE_OPEN, SECMODE_OPEN);
-    thsTargetTemperature.begin();
-    /* thsTargetTemperature.writeFloat(targetTemperature); */
-    thsTargetTemperature.setWriteCallback(target_temperature_write_callback);
-
-    thsTargetMode.setFixedLen(1);
-    thsTargetMode.setProperties(CHR_PROPS_READ | CHR_PROPS_WRITE | CHR_PROPS_WRITE_WO_RESP);
-    thsTargetMode.setPermission(SECMODE_OPEN, SECMODE_OPEN);
-    thsTargetMode.begin();
-    /* thsTargetMode.write8(targetMode); */
-    thsTargetMode.setWriteCallback(target_mode_write_callback);
-
-    Serial.println("Setting up the advertising");
+    /* Serial.println("Setting up the advertising"); */
     startAdv();
 }
 
@@ -173,6 +120,5 @@ void write_humidity(float humidity) {
     float2IEEE11073(humidity, data + 1);
     thsHumidity.notify(data, sizeof(data));
 }
-void write_state(bool state) { thsRelayState.write8(state); }
 
 } // namespace BLE
